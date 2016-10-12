@@ -14,36 +14,49 @@ import java.nio.charset.Charset;
 import GivenTools.*;
 
 public class RUBTClient {
+
+    private static TorrentInfo getTorrentInfo(String fileName) throws IOException {
+
+        byte[] torrentFileBytes = null;
+        try {
+            torrentFileBytes = readFile(fileName);
+        } catch (FileNotFoundException e) {
+            System.err.println("ERROR: Torrent file not found.");
+            e.printStackTrace();
+        }
+
+        TorrentInfo torrentInfo = null;
+        try {
+            torrentInfo = new TorrentInfo(torrentFileBytes);
+        } catch (BencodingException e) {
+            System.err.println("ERROR: Can't get torrent info.");
+            e.printStackTrace();
+        }
+
+        return torrentInfo;
+    }
+
+    private static byte[] readFile(String fileName) throws IOException {
+        RandomAccessFile f = new RandomAccessFile(new File(fileName), "r");
+        byte[] data = new byte[(int) f.length()];
+        f.readFully(data);
+        f.close();
+        return data;
+    }
+
     public static void main(String[] args) {
-        String metaStr = "";
-        File metaFile = new File(args[0]);
-        BufferedReader reader = null;
 
-        try {
-            reader = new BufferedReader(new FileReader(args[0]));
-            String line;
-
-            while ((line = reader.readLine()) != null) {
-                metaStr += line;
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            try {
-                if (reader != null) {
-                    reader.close();
-                }
-            } catch (IOException e) {
-
-            }
+        if (args.length != 1) {
+            System.err.println("ERROR: Enter the location to a .torrent file.");
+            System.exit(-1);
         }
 
         try {
-            Bencoder2.decode(metaStr.getBytes(Charset.forName("UTF-8")));
-            // TODO: Sigh...
-        } catch (Exception e) {
+            TorrentInfo torrentInfo = getTorrentInfo(args[0]);
+            System.out.println(torrentInfo);
+
+        } catch (IOException e) {
             e.printStackTrace();
         }
-        // System.out.println(decoded);
     }
 }
