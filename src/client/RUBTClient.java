@@ -10,6 +10,7 @@ package client;
 import java.io.*;
 import java.util.*;
 import java.net.*;
+import java.nio.ByteBuffer;
 
 import java.nio.charset.StandardCharsets;
 
@@ -21,6 +22,12 @@ public class RUBTClient {
     private static final byte[] PEER_ID =
         { 'j', 'u', 'n', 'g', 's', 'o', 'o', 'p', 'a', 'r', 
           'k', 'j', 'a', 'm', 'i', 'e', 'l', 'i', 'a', 'o' };
+
+    private static final ByteBuffer KEY_PEERS = ByteBuffer.wrap(new byte[] 
+            { 'p', 'e', 'e', 'r', 's' });
+
+    private static final ByteBuffer KEY_PEER_ID = ByteBuffer.wrap(new byte[] 
+            { 'p', 'e', 'e', 'r', ' ', 'i', 'd' });
 
     private static TorrentInfo getTorrentInfo(String fileName) throws IOException {
 
@@ -75,8 +82,8 @@ public class RUBTClient {
         String uploaded = "" + 0;
         String downloaded = "" + 0;
         String left = String.valueOf(info.file_length);
-        String noPeerId = "1";
-        String compact = "0";
+        // String noPeerId = "1";
+        // String compact = "0";
 
         String qs = "?info_hash=" + infoHash
                     + "&peer_id=" + peerId
@@ -86,6 +93,16 @@ public class RUBTClient {
                     + "&event=" + event;
 
         return qs;
+    }
+
+    private static String getStringFrom(ByteBuffer byteString) {
+        byte[] bytes = byteString.array();
+        String res = "";
+        for (int i = 0; i < bytes.length; i++) {
+            res += (char) bytes[i];
+        }
+
+        return res;
     }
 
     public static void main(String[] args) {
@@ -106,29 +123,41 @@ public class RUBTClient {
         String host = metaInfo.announce_url.toString();
         String qs = getQueryString(metaInfo);
 
-        try {
-            HttpURLConnection con = (HttpURLConnection) new URL(host + qs).openConnection();
-            con.setRequestMethod("GET");
-            con.connect();
+        byte[] responseBytes = null;
 
+        try { // Connecting
+            HttpURLConnection con = (HttpURLConnection) new URL(host + qs).openConnection();
             System.out.println(con.getResponseCode() + " " + con.getResponseMessage() + '\n');
 
             InputStream in = con.getInputStream();
-
-            byte[] responseBytes = new byte[in.available()];
+            responseBytes = new byte[in.available()];
             in.read(responseBytes);
-
-            try {
-                ToolKit.print(Bencoder2.decode(responseBytes));
-            } catch (BencodingException e) {
-                System.err.println("ERROR: Could not decode tracker response.");
-                e.printStackTrace();
-            }
 
         } catch (IOException e) {
             System.err.println("ERROR: Connection failed.");
             e.printStackTrace();
         }
+
+        Map<ByteBuffer, Object> response = null;
+        try {
+            response = (Map<ByteBuffer, Object>) Bencoder2.decode(responseBytes);
+        } catch (BencodingException e) {
+            System.err.println("ERROR: Could not decode tracker response.");
+            e.printStackTrace();
+        }
+
+        List<Map<String, Object>> peers = (List<Map<String, Object>>) response.get(KEY_PEERS);
+        Map<String, Object> peer = null;
+
+        // Get the peer prefixed with "-RU"
+        for (Map<String, Object> p : peers) {
+            String peerId = getStringFrom((ByteBuffer) p.get(KEY_PEER_ID));
+            if (peerId.startsWith("-RU")) {
+                peer = p;
+            }
+        }
+
+        ToolKit.print(peer);
 
     }
 }
