@@ -12,8 +12,6 @@ import java.util.*;
 import java.net.*;
 import java.nio.ByteBuffer;
 
-import java.nio.charset.StandardCharsets;
-
 import GivenTools.*;
 
 public class RUBTClient {
@@ -28,6 +26,12 @@ public class RUBTClient {
 
     private static final ByteBuffer KEY_PEER_ID = ByteBuffer.wrap(new byte[] 
             { 'p', 'e', 'e', 'r', ' ', 'i', 'd' });
+
+    private static final ByteBuffer KEY_IP = ByteBuffer.wrap(new byte[] 
+            { 'i', 'p' });
+
+    private static final ByteBuffer KEY_PORT = ByteBuffer.wrap(new byte[] 
+            { 'p', 'o', 'r', 't' });
 
     private static TorrentInfo getTorrentInfo(String fileName) throws IOException {
 
@@ -134,7 +138,7 @@ public class RUBTClient {
             in.read(responseBytes);
 
         } catch (IOException e) {
-            System.err.println("ERROR: Connection failed.");
+            System.err.println("ERROR: Failed to connect to tracker.");
             e.printStackTrace();
         }
 
@@ -158,6 +162,46 @@ public class RUBTClient {
         }
 
         ToolKit.print(peer);
+        String peerIp = getStringFrom((ByteBuffer) peer.get(KEY_IP));
+        int peerPort = (int) peer.get(KEY_PORT);
+
+
+        try {
+            Socket peerSock = new Socket(peerIp, peerPort);
+            DataOutputStream peerOut = new DataOutputStream(peerSock.getOutputStream());
+            BufferedReader peerIn = new BufferedReader(
+                    new InputStreamReader(
+                    new DataInputStream(peerSock.getInputStream())));
+
+            byte[] initMsg = { 19, 'B', 'i', 't', 'T', 'o', 'r', 'r', 'e', 
+                'n', 't', ' ', 'p', 'r', 'o', 't', 'o', 'c', 'o', 'l', '0',
+                '0', '0', '0', '0', '0', '0', '0' };
+            initMsg = (byte[]) ArrayUtils.addAll(initMsg, metaInfo.info_hash.array());
+            initMsg = (byte[]) ArrayUtils.addAll(initMsg, PEER_ID);
+            System.out.println(initMsg);
+
+            /*
+            String initMsg = (new Integer(19)).byteValue() + "BitTorrent protocol00000000" + 
+                getStringFrom(metaInfo.info_hash) + 
+                getStringFrom(ByteBuffer.wrap(PEER_ID));
+                */
+
+            System.out.println(initMsg);
+            peerOut.writeBytes(initMsg);
+            
+            String line;
+
+            while ((line = peerIn.readLine()) != null) {
+                System.out.println(line);
+            }
+
+        } catch (UnknownHostException uhe) {
+            System.err.println("ERROR: Unknown host.");
+            uhe.printStackTrace();
+        } catch (IOException e) {
+            System.err.println("ERROR: Failed to connect to peer.");
+            e.printStackTrace();
+        }
 
     }
 }
