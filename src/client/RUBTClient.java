@@ -109,6 +109,51 @@ public class RUBTClient {
         return res;
     }
 
+    private static void sendHandShake(Socket peerSock, TorrentInfo metaInfo) throws IOException{
+            DataOutputStream peerOut = new DataOutputStream(peerSock.getOutputStream());
+            peerOut.writeByte(19);
+            peerOut.write("BitTorrent protocol".getBytes());
+            peerOut.write(new byte[8]);
+            peerOut.write(metaInfo.info_hash.array());
+            peerOut.write(PEER_ID);
+    }
+
+    private static boolean receivedHandShake(DataInputStream in, TorrentInfo metaInfo, Map<String, Object> peer) throws Exception{
+        try{
+            int pstrlen = in.readByte();
+            if(pstrlen != 19)
+              throw new Exception("Wrong protocol length of " + pstrlen);
+
+            byte[] pstr = new byte[pstrlen];
+            in.read(pstr);
+            if(!Arrays.equals(pstr, "BitTorrent protocol".getBytes()))
+              throw new Exception("Protocols do not match!");
+
+            byte[] reserved = new byte[8];
+            in.read(reserved);
+            if(!Arrays.equals(reserved, new byte[8]))
+              throw new Exception("Reserved bytes not matched!");
+
+            byte[] infoHash = new byte[20];
+            in.read(infoHash);
+            if(!Arrays.equals(infoHash, metaInfo.info_hash.array()))
+              throw new Exception("Info hash not the same! ");
+
+            byte[] recPeerID = new byte[20];
+            in.read(recPeerID);
+            String peerId = getStringFrom((ByteBuffer) peer.get(KEY_PEER_ID));
+            if(Arrays.equals(recPeerID, peerId.getBytes()))
+              throw new Exception("Peer IDs are the same!");
+
+            System.out.println("apples");
+        }catch(IOException e){
+          System.out.println("Problem parsing header!");
+          throw e;
+        }
+        return false;
+      
+    }
+
     public static void main(String[] args) {
 
         if (args.length != 1) {
@@ -158,6 +203,7 @@ public class RUBTClient {
             String peerId = getStringFrom((ByteBuffer) p.get(KEY_PEER_ID));
             if (peerId.startsWith("-RU")) {
                 peer = p;
+                break;
             }
         }
 
@@ -172,13 +218,26 @@ public class RUBTClient {
             BufferedReader peerIn = new BufferedReader(
                     new InputStreamReader(
                     new DataInputStream(peerSock.getInputStream())));
+            DataInputStream in = new DataInputStream(peerSock.getInputStream());
+            //building handshake message
+            sendHandShake(peerSock, metaInfo);
+
+            //check if returned handshake is correct
+            boolean protocolSuccess = receivedHandShake(in, metaInfo, peer);
+
+            /*
+            int pstrlen = 19;
+            byte init = (byte)pstrlen;
+            byte[] pstr = new String("BitTorrent protocol").getBytes();
+            byte[] reserved = new byte[8];
+            Arrays.fill(reserved, (byte)0);
 
             byte[] initMsg = { 19, 'B', 'i', 't', 'T', 'o', 'r', 'r', 'e', 
                 'n', 't', ' ', 'p', 'r', 'o', 't', 'o', 'c', 'o', 'l', '0',
                 '0', '0', '0', '0', '0', '0', '0' };
             initMsg = (byte[]) ArrayUtils.addAll(initMsg, metaInfo.info_hash.array());
             initMsg = (byte[]) ArrayUtils.addAll(initMsg, PEER_ID);
-            System.out.println(initMsg);
+            */
 
             /*
             String initMsg = (new Integer(19)).byteValue() + "BitTorrent protocol00000000" + 
@@ -186,8 +245,8 @@ public class RUBTClient {
                 getStringFrom(ByteBuffer.wrap(PEER_ID));
                 */
 
-            System.out.println(initMsg);
-            peerOut.writeBytes(initMsg);
+            //System.out.println(initMsg);
+            //peerOut.writeBytes(initMsg);
             
             String line;
 
@@ -200,6 +259,9 @@ public class RUBTClient {
             uhe.printStackTrace();
         } catch (IOException e) {
             System.err.println("ERROR: Failed to connect to peer.");
+            e.printStackTrace();
+        } catch (Exception e){
+            System.out.println("ERROR: Incorrect protocol header.");
             e.printStackTrace();
         }
 
