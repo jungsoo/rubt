@@ -178,11 +178,12 @@ public class RUBTClient {
 
     public static void main(String[] args) {
 
-        if (args.length != 1) {
-            System.err.println("ERROR: Enter the location to a .torrent file.");
+        if (args.length != 2) {
+            System.err.println("ERROR: Not enough inputs.");
             System.exit(1);
         }
 
+        String outFileName = args[1];
         TorrentInfo metaInfo = null;
         try {
             metaInfo = getTorrentInfo(args[0]);
@@ -249,7 +250,7 @@ public class RUBTClient {
             byte[] bitfield = new byte[len - 1];
             in.readFully(bitfield);
 
-            System.out.print("Expressing interest... ");
+            System.out.print("Expressing interest to peer... ");
             out.writeInt(1);                // Message Length
             out.writeByte(2);               // Message ID
 
@@ -260,13 +261,19 @@ public class RUBTClient {
 
                 System.out.println("Unchoked!");
                 final int pieceCount = metaInfo.piece_hashes.length;
-                final int pieceLength = metaInfo.piece_length;
+                int pieceLength = metaInfo.piece_length;
 
-                byte[] pieces = new byte[pieceCount * pieceLength];
+                byte[] pieces = new byte[(pieceCount - 1) * pieceLength + 
+                    metaInfo.file_length % pieceLength];
                 System.out.println("The file is " + pieces.length + "B long.");
                 System.out.println("Downloading...");
 
                 for (int i = 0; i < pieceCount; i++) {
+
+                    pieceLength = metaInfo.piece_length;
+                    if (i == pieceCount - 1) {
+                        pieceLength = metaInfo.file_length % pieceLength;
+                    }
 
                     // Sending "request"
                     out.writeInt(13);               // Message Length
@@ -282,12 +289,30 @@ public class RUBTClient {
                     if (messageIsPiece(msgId)) {
                         int index = in.readInt();
                         int begin = in.readInt();
-                        in.readFully(pieces, i * pieceLength, pieceLength);
 
-                        byte[] currPiece = Arrays.copyOfRange(pieces, i * pieceLength, i * pieceLength + pieceLength);
+                        if (i == pieceCount - 1) { // Last piece
+                            pieceLength = in.available();
+                        } else { // Wait until there is enough available bytes
+                            while (in.available() < pieceLength) { }
+                        }
+
+                        in.readFully(pieces, i * metaInfo.piece_length, pieceLength);
+
+                        byte[] currPiece = Arrays.copyOfRange(pieces,
+                                i * metaInfo.piece_length,
+                                i * metaInfo.piece_length + pieceLength);
 
                         ByteBuffer correctChecksum = metaInfo.piece_hashes[i];
                         ByteBuffer pieceChecksum = getSHA1Checksum(currPiece);
+
+                        /* 
+                        for (Byte b : correctChecksum.array())
+                            System.out.print(b);
+                        System.out.println();
+                        for (Byte b : pieceChecksum.array())
+                            System.out.print(b);
+                        System.out.println();
+                        */
 
                         if (correctChecksum.equals(pieceChecksum)) {
                             System.out.println(i + "\t" + currPiece);
@@ -300,9 +325,10 @@ public class RUBTClient {
                     }
                 }
 
-                FileOutputStream fout = new FileOutputStream(metaInfo.file_name);
+                FileOutputStream fout = new FileOutputStream(outFileName);
                 fout.write(pieces);
                 fout.close();
+                System.out.println("File written to disk.");
 
                 out.close();
                 in.close();
