@@ -11,6 +11,8 @@ import java.io.*;
 import java.util.*;
 import java.net.*;
 import java.nio.ByteBuffer;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 import GivenTools.*;
 
@@ -18,8 +20,8 @@ public class RUBTClient {
 
     // Unique, arbitrary peer id
     private static final byte[] PEER_ID =
-        { 'j', 'u', 'n', 'g', 's', 'o', 'o', 'p', 'a', 'r', 
-          'k', 'j', 'a', 'm', 'i', 'e', 'l', 'i', 'a', 'o' };
+        { 'J', 'u', 'n', 'g', 's', 'o', 'o', 'P', 'a', 'r', 
+          'k', 'J', 'a', 'm', 'i', 'e', 'L', 'i', 'a', 'o' };
 
     private static final ByteBuffer KEY_PEERS = ByteBuffer.wrap(new byte[] 
             { 'p', 'e', 'e', 'r', 's' });
@@ -76,13 +78,12 @@ public class RUBTClient {
         return sb.toString();
     }
 
-    private static String getQueryString(TorrentInfo info) {
-
+    private static String getQueryString(TorrentInfo info, String event) {
+        // Make these parameters as our client gets more interesting
         String infoHash = toHexString(info.info_hash.array());
         String peerId = toHexString(PEER_ID);
         String ip = info.announce_url.getHost().toString();
         String port = String.valueOf(info.announce_url.getPort());
-        String event = "started";
         String uploaded = "" + 0;
         String downloaded = "" + 0;
         String left = String.valueOf(info.file_length);
@@ -109,17 +110,17 @@ public class RUBTClient {
         return res;
     }
 
-    private static void sendHandShake(Socket peerSock, TorrentInfo metaInfo) throws IOException{
-            DataOutputStream peerOut = new DataOutputStream(peerSock.getOutputStream());
-            peerOut.writeByte(19);
-            peerOut.write("BitTorrent protocol".getBytes());
-            peerOut.write(new byte[8]);
-            peerOut.write(metaInfo.info_hash.array());
-            peerOut.write(PEER_ID);
+    private static void sendHandshake(DataOutputStream out, TorrentInfo info) throws IOException {
+            out.writeByte(19);
+            out.write("BitTorrent protocol".getBytes());
+            out.write(new byte[8]);
+            out.write(info.info_hash.array());
+            out.write(PEER_ID);
     }
 
-    private static boolean receivedHandShake(DataInputStream in, TorrentInfo metaInfo, Map<String, Object> peer) throws Exception{
-        try{
+    // Verifies the handshake response from the peer
+    private static void receiveHandshake(DataInputStream in, TorrentInfo info, Map<String, Object> peer) throws Exception {
+        try {
             int pstrlen = in.readByte();
             if(pstrlen != 19)
               throw new Exception("Wrong protocol length of " + pstrlen);
@@ -136,22 +137,43 @@ public class RUBTClient {
 
             byte[] infoHash = new byte[20];
             in.read(infoHash);
-            if(!Arrays.equals(infoHash, metaInfo.info_hash.array()))
-              throw new Exception("Info hash not the same! ");
+            if(!Arrays.equals(infoHash, info.info_hash.array()))
+              throw new Exception("Info hash not the same!");
 
             byte[] recPeerID = new byte[20];
             in.read(recPeerID);
             String peerId = getStringFrom((ByteBuffer) peer.get(KEY_PEER_ID));
             if(Arrays.equals(recPeerID, peerId.getBytes()))
               throw new Exception("Peer IDs are the same!");
-
-            System.out.println("apples");
-        }catch(IOException e){
-          System.out.println("Problem parsing header!");
-          throw e;
+        } catch (Exception e) {
+            System.err.println("Failure!\nERROR: Bad peer response");
+            e.printStackTrace();
         }
-        return false;
-      
+
+        System.out.println("Success!");
+    }
+
+    private static boolean messageIsUnchoked(int lengthPrefix, byte message) {
+        return lengthPrefix == 1 && message == 1;
+    }
+
+    private static boolean messageIsChoked(int lengthPrefix, byte message) {
+        return lengthPrefix == 1 && message == 0;
+    }
+
+    private static boolean messageIsPiece(byte message) {
+        return message == 7;
+    }
+
+    private static ByteBuffer getSHA1Checksum(byte[] piece) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-1");
+            digest.update(piece);
+            return ByteBuffer.wrap(digest.digest());
+        } catch (NoSuchAlgorithmException nsae) {
+            System.err.println(nsae.getLocalizedMessage());
+        }
+        return null;
     }
 
     public static void main(String[] args) {
@@ -170,20 +192,20 @@ public class RUBTClient {
 
         /* Build query string */
         String host = metaInfo.announce_url.toString();
-        String qs = getQueryString(metaInfo);
+        String qs = getQueryString(metaInfo, "started");
 
         byte[] responseBytes = null;
+        System.out.print("Connecting to TRACKER... ");
 
         try { // Connecting
             HttpURLConnection con = (HttpURLConnection) new URL(host + qs).openConnection();
-            System.out.println(con.getResponseCode() + " " + con.getResponseMessage() + '\n');
 
             InputStream in = con.getInputStream();
             responseBytes = new byte[in.available()];
             in.read(responseBytes);
 
         } catch (IOException e) {
-            System.err.println("ERROR: Failed to connect to tracker.");
+            System.err.println("Failure!\nERROR: Failed to connect to tracker.");
             e.printStackTrace();
         }
 
@@ -191,14 +213,14 @@ public class RUBTClient {
         try {
             response = (Map<ByteBuffer, Object>) Bencoder2.decode(responseBytes);
         } catch (BencodingException e) {
-            System.err.println("ERROR: Could not decode tracker response.");
+            System.err.println("Failure!\nERROR: Could not decode tracker response.");
             e.printStackTrace();
         }
 
         List<Map<String, Object>> peers = (List<Map<String, Object>>) response.get(KEY_PEERS);
         Map<String, Object> peer = null;
 
-        // Get the peer prefixed with "-RU"
+        // Find the peer prefixed with "-RU"
         for (Map<String, Object> p : peers) {
             String peerId = getStringFrom((ByteBuffer) p.get(KEY_PEER_ID));
             if (peerId.startsWith("-RU")) {
@@ -207,63 +229,107 @@ public class RUBTClient {
             }
         }
 
-        ToolKit.print(peer);
+        System.out.println("Success!");
+
         String peerIp = getStringFrom((ByteBuffer) peer.get(KEY_IP));
         int peerPort = (int) peer.get(KEY_PORT);
 
-
-        try {
+        try { // Fun with the peer!
             Socket peerSock = new Socket(peerIp, peerPort);
-            DataOutputStream peerOut = new DataOutputStream(peerSock.getOutputStream());
-            BufferedReader peerIn = new BufferedReader(
-                    new InputStreamReader(
-                    new DataInputStream(peerSock.getInputStream())));
+            DataOutputStream out = new DataOutputStream(peerSock.getOutputStream());
             DataInputStream in = new DataInputStream(peerSock.getInputStream());
-            //building handshake message
-            sendHandShake(peerSock, metaInfo);
 
-            //check if returned handshake is correct
-            boolean protocolSuccess = receivedHandShake(in, metaInfo, peer);
+            System.out.print("Attempting to handshake with peer... ");
+            sendHandshake(out, metaInfo);
+            receiveHandshake(in, metaInfo, peer); // Verify peer response
 
-            /*
-            int pstrlen = 19;
-            byte init = (byte)pstrlen;
-            byte[] pstr = new String("BitTorrent protocol").getBytes();
-            byte[] reserved = new byte[8];
-            Arrays.fill(reserved, (byte)0);
+            // Read bitfield, what is this for?
+            int len = in.readInt();
+            byte msgId = in.readByte();
+            byte[] bitfield = new byte[len - 1];
+            in.readFully(bitfield);
 
-            byte[] initMsg = { 19, 'B', 'i', 't', 'T', 'o', 'r', 'r', 'e', 
-                'n', 't', ' ', 'p', 'r', 'o', 't', 'o', 'c', 'o', 'l', '0',
-                '0', '0', '0', '0', '0', '0', '0' };
-            initMsg = (byte[]) ArrayUtils.addAll(initMsg, metaInfo.info_hash.array());
-            initMsg = (byte[]) ArrayUtils.addAll(initMsg, PEER_ID);
-            */
+            System.out.print("Expressing interest... ");
+            out.writeInt(1);                // Message Length
+            out.writeByte(2);               // Message ID
 
-            /*
-            String initMsg = (new Integer(19)).byteValue() + "BitTorrent protocol00000000" + 
-                getStringFrom(metaInfo.info_hash) + 
-                getStringFrom(ByteBuffer.wrap(PEER_ID));
-                */
-
-            //System.out.println(initMsg);
-            //peerOut.writeBytes(initMsg);
+            len = in.readInt();
+            msgId = in.readByte();
             
-            String line;
+            if (messageIsUnchoked(len, msgId)) {   // Unchoked
 
-            while ((line = peerIn.readLine()) != null) {
-                System.out.println(line);
+                System.out.println("Unchoked!");
+                final int pieceCount = metaInfo.piece_hashes.length;
+                final int pieceLength = metaInfo.piece_length;
+
+                byte[] pieces = new byte[pieceCount * pieceLength];
+                System.out.println("The file is " + pieces.length + "B long.");
+                System.out.println("Downloading...");
+
+                for (int i = 0; i < pieceCount; i++) {
+
+                    // Sending "request"
+                    out.writeInt(13);               // Message Length
+                    out.writeByte(6);               // Message ID
+                    out.writeInt(i);                // Index
+                    out.writeInt(0);                // Begin
+                    out.writeInt(pieceLength);      // Length
+
+                    // Read message header
+                    len = in.readInt();
+                    msgId = in.readByte();
+
+                    if (messageIsPiece(msgId)) {
+                        int index = in.readInt();
+                        int begin = in.readInt();
+                        in.readFully(pieces, i * pieceLength, pieceLength);
+
+                        byte[] currPiece = Arrays.copyOfRange(pieces, i * pieceLength, i * pieceLength + pieceLength);
+
+                        ByteBuffer correctChecksum = metaInfo.piece_hashes[i];
+                        ByteBuffer pieceChecksum = getSHA1Checksum(currPiece);
+
+                        if (correctChecksum.equals(pieceChecksum)) {
+                            System.out.println(i + "\t" + currPiece);
+                        } else {
+                            System.err.println("ERROR: PIECE #" + i + " FAILED SHA-1 CHECK, TRYING AGAIN");
+                            i--;
+                        }
+                    } else {
+                        System.err.println("ERROR: PIECE #" + i + " NOT RECEIVED!");
+                    }
+                }
+
+                FileOutputStream fout = new FileOutputStream(metaInfo.file_name);
+                fout.write(pieces);
+                fout.close();
+
+                out.close();
+                in.close();
+                peerSock.close();
             }
 
         } catch (UnknownHostException uhe) {
             System.err.println("ERROR: Unknown host.");
             uhe.printStackTrace();
         } catch (IOException e) {
-            System.err.println("ERROR: Failed to connect to peer.");
             e.printStackTrace();
         } catch (Exception e){
-            System.out.println("ERROR: Incorrect protocol header.");
+            System.err.println("ERROR: Something went wrong lul.");
             e.printStackTrace();
         }
 
+        try { // Telling the tracker that the download has completed
+            qs = getQueryString(metaInfo, "completed");
+            HttpURLConnection con = (HttpURLConnection) new URL(host + qs).openConnection();
+
+            InputStream in = con.getInputStream();
+            responseBytes = new byte[in.available()];
+            in.read(responseBytes);
+
+        } catch (IOException e) {
+            System.err.println("Failure!\nERROR: Failed to connect to tracker.");
+            e.printStackTrace();
+        }
     }
 }
