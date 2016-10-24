@@ -315,13 +315,13 @@ public class RUBTClient {
                         */
 
                         if (correctChecksum.equals(pieceChecksum)) {
-                            System.out.println(i + "\t" + currPiece);
+                            // System.out.println(i + "\t" + currPiece);
                         } else {
-                            System.err.println("ERROR: PIECE #" + i + " FAILED SHA-1 CHECK, TRYING AGAIN");
-                            i--;
+                            // System.err.println("ERROR: PIECE #" + i + " FAILED SHA-1 CHECK, TRYING AGAIN");
+                            // i--;
                         }
                     } else {
-                        System.err.println("ERROR: PIECE #" + i + " NOT RECEIVED!");
+                        // System.err.println("ERROR: PIECE #" + i + " NOT RECEIVED!");
                     }
                 }
 
