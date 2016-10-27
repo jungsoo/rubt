@@ -1,4 +1,4 @@
-/**
+/*
  * @author Jungsoo Park
  * @author Jamie Liao
  *
@@ -15,6 +15,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 import GivenTools.*;
+
+
 
 public class RUBTClient {
 
@@ -100,7 +102,7 @@ public class RUBTClient {
         return qs;
     }
 
-    private static String getStringFrom(ByteBuffer byteString) {
+    public static String getStringFrom(ByteBuffer byteString) {
         byte[] bytes = byteString.array();
         String res = "";
         for (int i = 0; i < bytes.length; i++) {
@@ -116,41 +118,6 @@ public class RUBTClient {
             out.write(new byte[8]);
             out.write(info.info_hash.array());
             out.write(PEER_ID);
-    }
-
-    // Verifies the handshake response from the peer
-    private static void receiveHandshake(DataInputStream in, TorrentInfo info, Map<String, Object> peer) throws Exception {
-        try {
-            int pstrlen = in.readByte();
-            if(pstrlen != 19)
-              throw new Exception("Wrong protocol length of " + pstrlen);
-
-            byte[] pstr = new byte[pstrlen];
-            in.read(pstr);
-            if(!Arrays.equals(pstr, "BitTorrent protocol".getBytes()))
-              throw new Exception("Protocols do not match!");
-
-            byte[] reserved = new byte[8];
-            in.read(reserved);
-            if(!Arrays.equals(reserved, new byte[8]))
-              throw new Exception("Reserved bytes not matched!");
-
-            byte[] infoHash = new byte[20];
-            in.read(infoHash);
-            if(!Arrays.equals(infoHash, info.info_hash.array()))
-              throw new Exception("Info hash not the same!");
-
-            byte[] recPeerID = new byte[20];
-            in.read(recPeerID);
-            String peerId = getStringFrom((ByteBuffer) peer.get(KEY_PEER_ID));
-            if(Arrays.equals(recPeerID, peerId.getBytes()))
-              throw new Exception("Peer IDs are the same!");
-        } catch (Exception e) {
-            System.err.println("Failure!\nERROR: Bad peer response");
-            e.printStackTrace();
-        }
-
-        System.out.println("Success!");
     }
 
     private static boolean messageIsUnchoked(int lengthPrefix, byte message) {
@@ -191,10 +158,17 @@ public class RUBTClient {
             e.printStackTrace();
         }
 
+        
         /* Build query string */
+        
         String host = metaInfo.announce_url.toString();
         String qs = getQueryString(metaInfo, "started");
-
+        
+        Peers peers = new Peers(host, qs);
+        
+        
+        
+        /*
         byte[] responseBytes = null;
         System.out.print("Connecting to TRACKER... ");
 
@@ -219,16 +193,20 @@ public class RUBTClient {
         }
 
         List<Map<String, Object>> peers = (List<Map<String, Object>>) response.get(KEY_PEERS);
+        
+        */
+        
+        //------ NEED TO FIND PEER WITH LOWEST RTT
         Map<String, Object> peer = null;
-
         // Find the peer prefixed with "-RU"
-        for (Map<String, Object> p : peers) {
+        for (Map<String, Object> p : peers.getAllPeers()) {
             String peerId = getStringFrom((ByteBuffer) p.get(KEY_PEER_ID));
             if (peerId.startsWith("-RU")) {
                 peer = p;
                 break;
             }
         }
+        
 
         System.out.println("Success!");
 
@@ -242,8 +220,8 @@ public class RUBTClient {
 
             System.out.print("Attempting to handshake with peer... ");
             sendHandshake(out, metaInfo);
-            receiveHandshake(in, metaInfo, peer); // Verify peer response
-
+            String peerID = getStringFrom((ByteBuffer) peer.get(KEY_PEER_ID));
+            Handshake initHandshake = new Handshake(in, metaInfo, peer, peerID);
             // Read bitfield, what is this for?
             int len = in.readInt();
             byte msgId = in.readByte();
@@ -265,7 +243,7 @@ public class RUBTClient {
 
                 byte[] pieces = new byte[(pieceCount - 1) * pieceLength + 
                     metaInfo.file_length % pieceLength];
-                System.out.println("The file is " + pieces.length + "B long.");
+                System.out.println("The file is " + pieces.length + "B long and has " + pieceCount + " pieces.");
                 System.out.println("Downloading...");
 
                 for (int i = 0; i < pieceCount; i++) {
@@ -350,7 +328,7 @@ public class RUBTClient {
             HttpURLConnection con = (HttpURLConnection) new URL(host + qs).openConnection();
 
             InputStream in = con.getInputStream();
-            responseBytes = new byte[in.available()];
+            byte[] responseBytes = new byte[in.available()];
             in.read(responseBytes);
 
         } catch (IOException e) {
