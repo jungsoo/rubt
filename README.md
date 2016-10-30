@@ -11,5 +11,5 @@ $ javac -cp . client/RUClient.java
 
 Running:
 ```
-$ java client.RUBTClient <../path/to/file.torrent>
+$ java client.RUBTClient <path/to/file.torrent> <path/to/save/file.extension>
 ```
