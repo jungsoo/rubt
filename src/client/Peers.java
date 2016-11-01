@@ -12,9 +12,11 @@ public class Peers{
             { 'p', 'e', 'e', 'r', 's' });
 	private static final ByteBuffer KEY_PEER_ID = ByteBuffer.wrap(new byte[] 
             { 'p', 'e', 'e', 'r', ' ', 'i', 'd' });
+	private static final ByteBuffer KEY_IP = ByteBuffer.wrap(new byte[] 
+            { 'i', 'p' });
 	
-	List<Map<String, Object>> allPeers;
-	List<Map<String, Object>> RUPeers;
+	private List<Map<String, Object>> allPeers;
+	private List<Map<String, Object>> RUPeers;
 	
 	public Peers(String host, String qs){
 		makeConnection(host, qs);
@@ -26,51 +28,87 @@ public class Peers{
 	}
 	
 	private void makeConnection(String host, String qs){
-		byte[] responseBytes = null;
-        System.out.print("Connecting to TRACKER... ");
+	  byte[] responseBytes = null;
+    System.out.print("Connecting to TRACKER... ");
 
-        try { // Connecting
-            HttpURLConnection con = (HttpURLConnection) new URL(host + qs).openConnection();
+    try { // Connecting
+      HttpURLConnection con = (HttpURLConnection) new URL(host + qs).openConnection();
+      InputStream in = con.getInputStream();
+      responseBytes = new byte[in.available()];
+      in.read(responseBytes);
 
-            InputStream in = con.getInputStream();
-            responseBytes = new byte[in.available()];
-            in.read(responseBytes);
+    } catch (IOException e) {
+      System.err.println("Failure!\nERROR: Failed to connect to tracker.");
+      e.printStackTrace();
+    }
 
-        } catch (IOException e) {
-            System.err.println("Failure!\nERROR: Failed to connect to tracker.");
-            e.printStackTrace();
-        }
+    Map<ByteBuffer, Object> response = null;
+    try {
+      response = (Map<ByteBuffer, Object>) Bencoder2.decode(responseBytes);
+    } catch (BencodingException e) {
+      System.err.println("Failure!\nERROR: Could not decode tracker response.");
+      e.printStackTrace();
+    }
+    this.allPeers = (List<Map<String, Object>>) response.get(KEY_PEERS);
+    findPeers("-RU1103");
 
-        Map<ByteBuffer, Object> response = null;
-        try {
-            response = (Map<ByteBuffer, Object>) Bencoder2.decode(responseBytes);
-        } catch (BencodingException e) {
-            System.err.println("Failure!\nERROR: Could not decode tracker response.");
-            e.printStackTrace();
-        }
-        this.allPeers = (List<Map<String, Object>>) response.get(KEY_PEERS);
-        ToolKit.print(allPeers);
-        
-        findPeers("-RU");
-        
 	}
-	
-	public Map<String, Object> findLowestRTT(){
-		
-		
-	}
+
+  /* Calculates the RU peer with the lowest RTT
+   *
+   * @return the peer with the lowest RTT by calculating the RTT to each peer in RUPeers everytime
+  */
+
+  public Map<String, Object> findLowestRTT() throws Exception{
+    String prefix = "172.16.97";
+    long minAvgPing = Long.MAX_VALUE;
+    Map<String, Object> returnPeer = null;
+
+	  for (Map<String, Object> p : RUPeers) {
+      String peerIP = RUBTClient.getStringFrom((ByteBuffer) p.get(KEY_IP));
+      if(peerIP.startsWith(prefix) && (peerIP.contains(".11") || peerIP.contains(".12") || peerIP.contains(".13"))){
+        //find avg ping per ip
+        long avgPing = findAvgPing(peerIP);
+        if(avgPing < minAvgPing){
+          minAvgPing = avgPing;
+          returnPeer = p;
+        }
+        System.out.println("avgPing for " + peerIP + " is " + avgPing);
+      }
+
+    //ToolKit.print(returnPeer);
+    }
+
+    return returnPeer;
+  }
+
+  private long findAvgPing(String peerIP) throws Exception{
+    long avgPing = 0;
+    for(int i = 0; i < 10; i ++){
+      InetAddress inet = InetAddress.getByName(peerIP);
+      //System.out.println("\n" + i + ": Sending ping to " + peerIP);
+      long finish = 0;
+      long start = new GregorianCalendar().getTimeInMillis();
+      if(inet.isReachable(5000)){
+        finish = new GregorianCalendar().getTimeInMillis();
+        avgPing += finish-start;
+        //System.out.println( i + " Ping is: " + (finish-start) + "ms");
+      }else{
+        System.err.println("Failure!\nERROR: Could not reach IP!.");
+      }
+    }
+    return avgPing;
+    
+  }
 	
 	private void findPeers(String prefix){
-		RUPeers = new ArrayList<Map<String, Object>>();
-		for (Map<String, Object> p : allPeers) {
-            String peerId = RUBTClient.getStringFrom((ByteBuffer) p.get(KEY_PEER_ID));
-            if (peerId.startsWith(prefix)) {
-                RUPeers.add(p);
-                
-            }
-        }
-		
-		ToolKit.print(RUPeers);
-	}
-	
+	  RUPeers = new ArrayList<Map<String, Object>>();
+	  for (Map<String, Object> p : allPeers) {
+      String peerId = RUBTClient.getStringFrom((ByteBuffer) p.get(KEY_PEER_ID));
+      if (peerId.startsWith(prefix)) 
+        RUPeers.add(p);
+      
+    }
+  }
+
 }

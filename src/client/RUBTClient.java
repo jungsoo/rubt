@@ -165,6 +165,14 @@ public class RUBTClient {
         String qs = getQueryString(metaInfo, "started");
         
         Peers peers = new Peers(host, qs);
+        Map<String, Object> peer = null;
+
+        try{ 
+          peer = peers.findLowestRTT();
+        }catch (Exception e){
+          System.err.println("ERROR: Coule not find lowest RTT.");
+          e.printStackTrace();
+        }
         
         
         
@@ -197,8 +205,7 @@ public class RUBTClient {
         */
         
         //------ NEED TO FIND PEER WITH LOWEST RTT
-        Map<String, Object> peer = null;
-        // Find the peer prefixed with "-RU"
+        /*Find the peer prefixed with "-RU"
         for (Map<String, Object> p : peers.getAllPeers()) {
             String peerId = getStringFrom((ByteBuffer) p.get(KEY_PEER_ID));
             if (peerId.startsWith("-RU")) {
@@ -206,7 +213,7 @@ public class RUBTClient {
                 break;
             }
         }
-        
+        */
 
         System.out.println("Success!");
 
@@ -245,7 +252,9 @@ public class RUBTClient {
                     metaInfo.file_length % pieceLength];
                 System.out.println("The file is " + pieces.length + "B long and has " + pieceCount + " pieces.");
                 System.out.println("Downloading...");
+                long start = System.nanoTime();
 
+                FileOutputStream os = new FileOutputStream(outFileName, true);
                 for (int i = 0; i < pieceCount; i++) {
 
                     pieceLength = metaInfo.piece_length;
@@ -263,6 +272,8 @@ public class RUBTClient {
                     // Read message header
                     len = in.readInt();
                     msgId = in.readByte();
+
+                    //System.out.println("     msgId: " + msgId);
 
                     if (messageIsPiece(msgId)) {
                         int index = in.readInt();
@@ -283,18 +294,30 @@ public class RUBTClient {
                         ByteBuffer correctChecksum = metaInfo.piece_hashes[i];
                         ByteBuffer pieceChecksum = getSHA1Checksum(currPiece);
 
-                        /* 
+                        /*
+                        System.out.print("    correctChecksum\n     ");
                         for (Byte b : correctChecksum.array())
                             System.out.print(b);
-                        System.out.println();
+                        System.out.print("\n    pieceChecksum\n     ");
                         for (Byte b : pieceChecksum.array())
                             System.out.print(b);
                         System.out.println();
                         */
+                        
+
 
                         if (correctChecksum.equals(pieceChecksum)) {
                             System.out.println(i + "\t" + currPiece);
+
+                            //write to file 
+                            try{
+                              os.write(currPiece);
+                              //System.out.println(currPiece.length + " bytes  written to file");
+                            } catch (IOException e) {
+                              //exception handling left as an exercise for the reader
+                            }
                         } else {
+                            
                             System.err.println("ERROR: PIECE #" + i + " FAILED SHA-1 CHECK, TRYING AGAIN");
                             i--;
                         }
@@ -302,13 +325,18 @@ public class RUBTClient {
                         System.err.println("ERROR: PIECE #" + i + " NOT RECEIVED!");
                     }
                 }
+                long end = System.nanoTime();
+                double totalTime = (double)(end-start)/1000000000.0;
+                System.out.println("Total time to download file is " + (int)totalTime/60 + " minutes and "  + totalTime%60 + "s");
 
+                /*
                 FileOutputStream fout = new FileOutputStream(outFileName);
                 fout.write(pieces);
                 fout.close();
+                */
                 System.out.println("File written to disk.");
-
                 out.close();
+                os.close();
                 in.close();
                 peerSock.close();
             }

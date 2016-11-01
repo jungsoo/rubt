@@ -7,11 +7,11 @@ import java.net.*;
 import GivenTools.*;
 
 public class Handshake{
-	public int pstrlen;
-	public byte[] pstr;
-	public byte[] reserved;
-	public byte[] infoHash;
-	public byte[] recPeerID;
+	private int pstrlen;
+	private byte[] pstr;
+	private byte[] reserved;
+	private byte[] infoHash;
+	private byte[] recPeerID;
 	
 	public Handshake(DataInputStream in, TorrentInfo info, Map<String, Object> peer, String peerID) throws Exception{
 		setPstrlen(in);
