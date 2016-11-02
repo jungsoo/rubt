@@ -102,6 +102,12 @@ public class RUBTClient {
         return qs;
     }
 
+    /*
+     * @param Bytebuffer to convert
+     * @return the bytestring in string form
+     *
+     */
+
     public static String getStringFrom(ByteBuffer byteString) {
         byte[] bytes = byteString.array();
         String res = "";
@@ -318,11 +324,11 @@ public class RUBTClient {
                             }
                         } else {
                             
-                            System.err.println("ERROR: PIECE #" + i + " FAILED SHA-1 CHECK, TRYING AGAIN");
+                            //System.err.println("ERROR: PIECE #" + i + " FAILED SHA-1 CHECK, TRYING AGAIN");
                             i--;
                         }
                     } else {
-                        System.err.println("ERROR: PIECE #" + i + " NOT RECEIVED!");
+                        //System.err.println("ERROR: PIECE #" + i + " NOT RECEIVED!");
                     }
                 }
                 long end = System.nanoTime();

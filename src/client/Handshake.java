@@ -1,3 +1,14 @@
+/*
+ *  @author Jungsoo Park
+ *  @author Jamie Liao
+ *
+ *  CS352 BitTorrent Project - Handshake.java
+ *
+ *  This class contains all of the details needed to conduct the handshake
+ *  with the peer.
+ *
+ */
+
 package client;
 
 import java.io.*;
