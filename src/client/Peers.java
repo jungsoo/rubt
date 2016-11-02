@@ -1,3 +1,15 @@
+/*
+ *  @author Jungsoo Park
+ *  @author Jamie Liao
+ *
+ *  CS352 BitTorrent Project - Peers.java
+ *
+ *  This class contacts the tracker for the list of peers. It also calculates the peer with the lowest average RTT and connects to it.
+ *
+ *
+ */
+
+
 package client;
 
 import java.io.*;
