@@ -24,6 +24,8 @@ public class RUBTClient {
     private static final byte[] PEER_ID =
         { 'J', 'u', 'n', 'g', 's', 'o', 'o', 'P', 'a', 'r', 
           'k', 'J', 'a', 'm', 'i', 'e', 'L', 'i', 'a', 'o' };
+    /* Moved to Torrent.java
+     *
 
     private static final ByteBuffer KEY_PEERS = ByteBuffer.wrap(new byte[] 
             { 'p', 'e', 'e', 'r', 's' });
@@ -36,6 +38,7 @@ public class RUBTClient {
 
     private static final ByteBuffer KEY_PORT = ByteBuffer.wrap(new byte[] 
             { 'p', 'o', 'r', 't' });
+    */
 
     private static TorrentInfo getTorrentInfo(String fileName) throws IOException {
 
@@ -117,7 +120,7 @@ public class RUBTClient {
 
         return res;
     }
-
+/*
     private static void sendHandshake(DataOutputStream out, TorrentInfo info) throws IOException {
             out.writeByte(19);
             out.write("BitTorrent protocol".getBytes());
@@ -125,6 +128,7 @@ public class RUBTClient {
             out.write(info.info_hash.array());
             out.write(PEER_ID);
     }
+    */
 
     private static boolean messageIsUnchoked(int lengthPrefix, byte message) {
         return lengthPrefix == 1 && message == 1;
@@ -171,60 +175,12 @@ public class RUBTClient {
         String qs = getQueryString(metaInfo, "started");
         
         Peers peers = new Peers(host, qs);
-        Map<String, Object> peer = null;
-
-        try{ 
-          peer = peers.findLowestRTT();
-        }catch (Exception e){
-          System.err.println("ERROR: Coule not find lowest RTT.");
-          e.printStackTrace();
-        }
-        
-        
-        
-        /*
-        byte[] responseBytes = null;
-        System.out.print("Connecting to TRACKER... ");
-
-        try { // Connecting
-            HttpURLConnection con = (HttpURLConnection) new URL(host + qs).openConnection();
-
-            InputStream in = con.getInputStream();
-            responseBytes = new byte[in.available()];
-            in.read(responseBytes);
-
-        } catch (IOException e) {
-            System.err.println("Failure!\nERROR: Failed to connect to tracker.");
-            e.printStackTrace();
-        }
-
-        Map<ByteBuffer, Object> response = null;
-        try {
-            response = (Map<ByteBuffer, Object>) Bencoder2.decode(responseBytes);
-        } catch (BencodingException e) {
-            System.err.println("Failure!\nERROR: Could not decode tracker response.");
-            e.printStackTrace();
-        }
-
-        List<Map<String, Object>> peers = (List<Map<String, Object>>) response.get(KEY_PEERS);
-        
-        */
-        
-        //------ NEED TO FIND PEER WITH LOWEST RTT
-        /*Find the peer prefixed with "-RU"
-        for (Map<String, Object> p : peers.getAllPeers()) {
-            String peerId = getStringFrom((ByteBuffer) p.get(KEY_PEER_ID));
-            if (peerId.startsWith("-RU")) {
-                peer = p;
-                break;
-            }
-        }
-        */
+        Torrent torr = new Torrent(metaInfo, peers.getPeers());
 
         System.out.println("Success!");
 
-        String peerIp = getStringFrom((ByteBuffer) peer.get(KEY_IP));
-        int peerPort = (int) peer.get(KEY_PORT);
+        String peerIp = getStringFrom((ByteBuffer) peers.getPeer().get(torr.getKEY_IP()));
+        int peerPort = (int) peers.getPeer().get(torr.getKEY_PORT());
 
         try { // Fun with the peer!
             Socket peerSock = new Socket(peerIp, peerPort);
@@ -232,9 +188,10 @@ public class RUBTClient {
             DataInputStream in = new DataInputStream(peerSock.getInputStream());
 
             System.out.print("Attempting to handshake with peer... ");
-            sendHandshake(out, metaInfo);
-            String peerID = getStringFrom((ByteBuffer) peer.get(KEY_PEER_ID));
-            Handshake initHandshake = new Handshake(in, metaInfo, peer, peerID);
+            //sendHandshake(out, metaInfo);
+            String peerID = getStringFrom((ByteBuffer) peers.getPeer().get(torr.getKEY_PEER_ID()));
+            Handshake hs = new Handshake(out,in, torr, peers.getPeer(), peerID);
+            hs.sendHandshake();
             // Read bitfield, what is this for?
             int len = in.readInt();
             byte msgId = in.readByte();
@@ -260,6 +217,9 @@ public class RUBTClient {
                 System.out.println("Downloading...");
                 long start = System.nanoTime();
 
+                Connection conn = new Connection(pieceCount);
+                conn.setPeers(peers.getPeers());
+
                 FileOutputStream os = new FileOutputStream(outFileName, true);
                 for (int i = 0; i < pieceCount; i++) {
 
@@ -279,11 +239,17 @@ public class RUBTClient {
                     len = in.readInt();
                     msgId = in.readByte();
 
-                    //System.out.println("     msgId: " + msgId);
+                    System.out.println("     msgId: " + msgId);
 
                     if (messageIsPiece(msgId)) {
                         int index = in.readInt();
                         int begin = in.readInt();
+
+                        Piece piece = new Piece(len, msgId, pieceLength);
+                        piece.setIndex(index);
+                        piece.setBegin(begin);
+                        System.out.println("index: " + index);
+
 
                         if (i == pieceCount - 1) { // Last piece
                             pieceLength = in.available();
@@ -296,6 +262,7 @@ public class RUBTClient {
                         byte[] currPiece = Arrays.copyOfRange(pieces,
                                 i * metaInfo.piece_length,
                                 i * metaInfo.piece_length + pieceLength);
+                        piece.setPieceData(currPiece);
 
                         ByteBuffer correctChecksum = metaInfo.piece_hashes[i];
                         ByteBuffer pieceChecksum = getSHA1Checksum(currPiece);

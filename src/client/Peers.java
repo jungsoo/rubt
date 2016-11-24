@@ -29,15 +29,26 @@ public class Peers{
 	
 	private List<Map<String, Object>> allPeers;
 	private List<Map<String, Object>> RUPeers;
+  private Map<String, Object> peer;
 	
 	public Peers(String host, String qs){
 		makeConnection(host, qs);
-	
+    try{
+      peer = findLowestRTT();
+    }catch(Exception e){
+      System.err.println("Failure!\nERROR: Could not find lowest RTT peer.");
+      e.printStackTrace();
+    }
 	}
-	
-	public List<Map<String, Object>> getAllPeers(){
-		return allPeers;
-	}
+
+  /*
+   * Finds the peer with the lowest RTT and stores it into peer
+   *
+   * @return the peer with the lowest RTT
+   */
+  public Map<String,Object> getPeer(){
+    return peer;
+  }
 	
 	private void makeConnection(String host, String qs){
 	  byte[] responseBytes = null;
@@ -62,7 +73,6 @@ public class Peers{
       e.printStackTrace();
     }
     this.allPeers = (List<Map<String, Object>>) response.get(KEY_PEERS);
-    findPeers("-RU1103");
 
 	}
 
@@ -72,6 +82,7 @@ public class Peers{
   */
 
   public Map<String, Object> findLowestRTT() throws Exception{
+    findPeers("-RU1103");
     String prefix = "172.16.97";
     long minAvgPing = Long.MAX_VALUE;
     Map<String, Object> returnPeer = null;
@@ -121,6 +132,10 @@ public class Peers{
         RUPeers.add(p);
       
     }
+  }
+
+  public List<Map<String, Object>> getPeers(){
+    return RUPeers;
   }
 
 }

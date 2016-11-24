@@ -14,6 +14,7 @@ package client;
 import java.io.*;
 import java.util.*;
 import java.net.*;
+import java.nio.ByteBuffer;
 
 import GivenTools.*;
 
@@ -23,14 +24,47 @@ public class Handshake{
 	private byte[] reserved;
 	private byte[] infoHash;
 	private byte[] recPeerID;
+  private byte[] PEER_ID;
+  private DataOutputStream out;
+  private DataInputStream in;
+  private Torrent torr;
 	
-	public Handshake(DataInputStream in, TorrentInfo info, Map<String, Object> peer, String peerID) throws Exception{
+	public Handshake(DataOutputStream out, DataInputStream in, Torrent torr, Map<String, Object> peer, String peerID) throws Exception{
+    this.out = out;
+    this.in = in;
+    this.torr = torr;
 		setPstrlen(in);
 		setPstr(in);
 		setReserved(in);
-		setInfoHash(in, info);
-		setRecPeerID(in, peer, peerID);
+		setInfoHash(in, torr);
+		setRecPeerID(in, peer, getPeerID(peer));
 	}
+
+  private String getPeerID(Map<String, Object> peer){
+    return getStringFrom((ByteBuffer)peer.get(torr.getKEY_PEER_ID()));
+  }
+
+  private static String getStringFrom(ByteBuffer byteString) {
+        byte[] bytes = byteString.array();
+        String res = "";
+        for (int i = 0; i < bytes.length; i++) {
+            res += (char) bytes[i];
+        }
+
+        return res;
+  }
+
+  public void sendHandshake() throws IOException{
+    out.writeByte(19);
+    out.write("BitTorrent protocol".getBytes());
+    out.write(new byte[8]);
+    out.write(infoHash);
+    out.write(torr.getPEER_ID());
+  }
+
+  public boolean verifyHandshake(){
+    return false;
+  }
 	
 	private void setPstrlen(DataInputStream in) throws Exception{
 		int pstrlen = in.readByte();
@@ -58,10 +92,10 @@ public class Handshake{
 		this.reserved = reserved;
 	}
 	
-	private void setInfoHash(DataInputStream in, TorrentInfo info) throws Exception{
+	private void setInfoHash(DataInputStream in, Torrent torr) throws Exception{
 		byte[] infoHash = new byte[20];
         in.read(infoHash);
-		if(!Arrays.equals(infoHash, info.info_hash.array())){
+		if(!Arrays.equals(infoHash, torr.getInfoHash())){
             throw new Exception("Info hash not the same!");
 		}
 		this.infoHash = infoHash;
