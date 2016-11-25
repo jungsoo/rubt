@@ -9,6 +9,7 @@ package client;
 
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.net.*;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
@@ -181,29 +182,36 @@ public class RUBTClient {
 
         String peerIp = getStringFrom((ByteBuffer) peers.getPeer().get(torr.getKEY_IP()));
         int peerPort = (int) peers.getPeer().get(torr.getKEY_PORT());
+        ThreadConnection conn = new ThreadConnection(torr.getPieceCount(), peers, torr);
+        conn.run();
 
         try { // Fun with the peer!
             Socket peerSock = new Socket(peerIp, peerPort);
+
             DataOutputStream out = new DataOutputStream(peerSock.getOutputStream());
             DataInputStream in = new DataInputStream(peerSock.getInputStream());
 
+
+            /*
             System.out.print("Attempting to handshake with peer... ");
             //sendHandshake(out, metaInfo);
             String peerID = getStringFrom((ByteBuffer) peers.getPeer().get(torr.getKEY_PEER_ID()));
-            Handshake hs = new Handshake(out,in, torr, peers.getPeer(), peerID);
+            Handshake hs = new Handshake(out,in, torr, peers.getPeer());
             hs.sendHandshake();
             // Read bitfield, what is this for?
             int len = in.readInt();
             byte msgId = in.readByte();
             byte[] bitfield = new byte[len - 1];
             in.readFully(bitfield);
+            */
 
+            TimeUnit.SECONDS.sleep(10);
             System.out.print("Expressing interest to peer... ");
             out.writeInt(1);                // Message Length
             out.writeByte(2);               // Message ID
 
-            len = in.readInt();
-            msgId = in.readByte();
+            int len = in.readInt();
+            byte msgId = in.readByte();
             
             if (messageIsUnchoked(len, msgId)) {   // Unchoked
 
@@ -217,15 +225,13 @@ public class RUBTClient {
                 System.out.println("Downloading...");
                 long start = System.nanoTime();
 
-                Connection conn = new Connection(pieceCount);
-                conn.setPeers(peers.getPeers());
 
                 FileOutputStream os = new FileOutputStream(outFileName, true);
                 for (int i = 0; i < pieceCount; i++) {
 
-                    pieceLength = metaInfo.piece_length;
+                    pieceLength = torr.getPieceLength();
                     if (i == pieceCount - 1) {
-                        pieceLength = metaInfo.file_length % pieceLength;
+                        pieceLength = torr.getFileLength() % pieceLength;
                     }
 
                     // Sending "request"

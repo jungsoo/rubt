@@ -24,13 +24,17 @@ public class Torrent{
     private static final ByteBuffer KEY_PORT = ByteBuffer.wrap(new byte[] 
             { 'p', 'o', 'r', 't' });
 
-    private static  TorrentInfo info;
-    private static  int pieceCount;
-    private static  int pieceLength;
-    private static  int file_length;
-    private static  ByteBuffer[] piece_hashes;
-    private static List<Map<String, Object>> RUPeers;
-    private static byte[] info_hash;
+    private TorrentInfo info;
+    private int pieceCount;
+    private int pieceLength;
+    private int file_length;
+    private ByteBuffer[] piece_hashes;
+    private List<Map<String, Object>> RUPeers;
+    private byte[] info_hash;
+    private int uploaded;
+    private int downloaded;
+    private int left;
+
 
     public Torrent(TorrentInfo info, List<Map<String, Object>> RUPeers){
       this.info = info;
@@ -41,6 +45,10 @@ public class Torrent{
       piece_hashes = info.piece_hashes;
       info_hash = info.info_hash.array();
     }
+
+    //setters
+    public void updateDownload(int x){ downloaded = x;}
+    public void updateLeft(int x){left = x;}
 
     //getters
     public byte[] getPEER_ID(){ return PEER_ID;}

@@ -29,7 +29,7 @@ public class Handshake{
   private DataInputStream in;
   private Torrent torr;
 	
-	public Handshake(DataOutputStream out, DataInputStream in, Torrent torr, Map<String, Object> peer, String peerID) throws Exception{
+	public Handshake(DataOutputStream out, DataInputStream in, Torrent torr, Map<String, Object> peer) throws Exception{
     this.out = out;
     this.in = in;
     this.torr = torr;

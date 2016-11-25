@@ -12,37 +12,35 @@ import java.io.*;
 import java.util.*;
 import java.net.*;
 
-public class Connection implements Runnable{
+public class ThreadConnection{
   //static array to be shared between the threads that contains the index of the received and downloaded pieces. Each piece has a unique index that can be mapped to each piece.
   private Thread thread;
   private static Piece[] pieceRec;
   private boolean end;
-  private List<Map<String, Object>> RUPeers;
+  private Torrent torr;
+  private Peers peers;
 
-  public Connection(int numPieces){
+  public ThreadConnection(int numPieces, Peers peers, Torrent torr){
     pieceRec = new Piece[numPieces];
+    this.peers = peers;
+    this.torr = torr;
     end = false;
   }
 
-  //method to run the multithreading process to check if the connection is valid
-  @Override
   public void run(){
-    while(!end){
-      for(Map<String, Object> p : RUPeers){
-        
+    int i = 0;
+      for(Map<String, Object> p : peers.getPeers()){
+          PeerThread pt = new PeerThread("Thread-" + i, torr, p);
+          pt.start();
         //allow only 1 thread to access boolean array of pieces received
         //sychronized(pieceRec){
         //  readPiece();
         //}
         System.out.println("hello");
-        break;
+        i++;
       }
-    }
   }
 
-  private void readPiece(){
-    
-  }
 
 
   private void printPieces(){
@@ -55,15 +53,5 @@ public class Connection implements Runnable{
     }
   }
 
-  public void setPeers(List<Map<String, Object>> RUPeers){
-    this.RUPeers = RUPeers;
-  }
-
 }
 
- class ConnectionTest{
-  public static void main(String[] args){
-    Connection cnt = new Connection(10);
-    cnt.run();
-  }
-}
