@@ -174,15 +174,19 @@ public class RUBTClient {
         
         String host = metaInfo.announce_url.toString();
         String qs = getQueryString(metaInfo, "started");
+
+        TrackerThread tt = new TrackerThread(metaInfo, PEER_ID);
         
-        Peers peers = new Peers(host, qs);
+        Peers peers = new Peers(tt.getAllPeers());
         Torrent torr = new Torrent(metaInfo, peers.getPeers());
+        tt.setTorrent(torr);
+        tt.start();
 
         System.out.println("Success!");
 
         String peerIp = getStringFrom((ByteBuffer) peers.getPeer().get(torr.getKEY_IP()));
         int peerPort = (int) peers.getPeer().get(torr.getKEY_PORT());
-        ThreadConnection conn = new ThreadConnection(torr.getPieceCount(), peers, torr);
+        ThreadConnection conn = new ThreadConnection(torr.getPieceCount(), peers, torr, outFileName);
         conn.run();
 
         try { // Fun with the peer!
@@ -205,7 +209,7 @@ public class RUBTClient {
             in.readFully(bitfield);
             */
 
-            TimeUnit.SECONDS.sleep(10);
+            TimeUnit.SECONDS.sleep(30);
             System.out.print("Expressing interest to peer... ");
             out.writeInt(1);                // Message Length
             out.writeByte(2);               // Message ID
@@ -227,7 +231,11 @@ public class RUBTClient {
 
 
                 FileOutputStream os = new FileOutputStream(outFileName, true);
-                for (int i = 0; i < pieceCount; i++) {
+
+
+                //-----------------------------------------------------------
+                //changed the for loop condition to stop RUBTClient from running
+                for (int i = 0; i > pieceCount; i++) {
 
                     pieceLength = torr.getPieceLength();
                     if (i == pieceCount - 1) {
@@ -251,9 +259,6 @@ public class RUBTClient {
                         int index = in.readInt();
                         int begin = in.readInt();
 
-                        Piece piece = new Piece(len, msgId, pieceLength);
-                        piece.setIndex(index);
-                        piece.setBegin(begin);
                         System.out.println("index: " + index);
 
 
@@ -268,7 +273,6 @@ public class RUBTClient {
                         byte[] currPiece = Arrays.copyOfRange(pieces,
                                 i * metaInfo.piece_length,
                                 i * metaInfo.piece_length + pieceLength);
-                        piece.setPieceData(currPiece);
 
                         ByteBuffer correctChecksum = metaInfo.piece_hashes[i];
                         ByteBuffer pieceChecksum = getSHA1Checksum(currPiece);

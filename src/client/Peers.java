@@ -26,13 +26,16 @@ public class Peers{
             { 'p', 'e', 'e', 'r', ' ', 'i', 'd' });
 	private static final ByteBuffer KEY_IP = ByteBuffer.wrap(new byte[] 
             { 'i', 'p' });
+	private static final ByteBuffer INTERVAL = ByteBuffer.wrap(new byte[] 
+            { 'i', 'n', 't', 'e', 'r', 'v', 'a', 'l' });
 	
 	private List<Map<String, Object>> allPeers;
 	private List<Map<String, Object>> RUPeers;
   private Map<String, Object> peer;
 	
-	public Peers(String host, String qs){
-		makeConnection(host, qs);
+	public Peers(List<Map<String, Object>> allPeers){
+    this.allPeers = allPeers;
+		//makeConnection(host, qs);
     try{
       peer = findLowestRTT();
     }catch(Exception e){
@@ -50,6 +53,7 @@ public class Peers{
     return peer;
   }
 	
+  /*
 	private void makeConnection(String host, String qs){
 	  byte[] responseBytes = null;
     System.out.print("Connecting to TRACKER... ");
@@ -73,8 +77,10 @@ public class Peers{
       e.printStackTrace();
     }
     this.allPeers = (List<Map<String, Object>>) response.get(KEY_PEERS);
+    System.out.println("response.get interval: " + response.get(INTERVAL));
 
 	}
+  */
 
   /* Calculates the RU peer with the lowest RTT
    *

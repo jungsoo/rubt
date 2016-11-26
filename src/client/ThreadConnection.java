@@ -1,7 +1,7 @@
 /*
  * Jamie Liao and Jungsoo Park
  *
- * This class maintains the connections between the multiple connected peers via threads. It handles a download or upload request from the peers.
+ * This class maintains the connections between the multiple connected peers via threads. It handles all thread calling for downloading, uploading, tracker updates, and listening. 
  *
  *
  */
@@ -13,24 +13,25 @@ import java.util.*;
 import java.net.*;
 
 public class ThreadConnection{
-  //static array to be shared between the threads that contains the index of the received and downloaded pieces. Each piece has a unique index that can be mapped to each piece.
-  private Thread thread;
-  private static Piece[] pieceRec;
   private boolean end;
   private Torrent torr;
   private Peers peers;
+  private String outFileName;
 
-  public ThreadConnection(int numPieces, Peers peers, Torrent torr){
-    pieceRec = new Piece[numPieces];
+  public ThreadConnection(int numPieces, Peers peers, Torrent torr, String outFileName){
     this.peers = peers;
     this.torr = torr;
-    end = false;
+    this.outFileName = outFileName;
   }
 
   public void run(){
+    //run tracker thread
+    
+
+
     int i = 0;
       for(Map<String, Object> p : peers.getPeers()){
-          PeerThread pt = new PeerThread("Thread-" + i, torr, p);
+          PeerThread pt = new PeerThread("Thread-" + i, torr, p, outFileName);
           pt.start();
         //allow only 1 thread to access boolean array of pieces received
         //sychronized(pieceRec){
@@ -43,15 +44,6 @@ public class ThreadConnection{
 
 
 
-  private void printPieces(){
-    for(int i = 0; i < pieceRec.length; i++){
-      if(pieceRec[i] != null)
-        System.out.print("1");
-      else
-        System.out.print("0");
-
-    }
-  }
 
 }
 

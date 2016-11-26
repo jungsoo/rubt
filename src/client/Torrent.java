@@ -1,3 +1,12 @@
+/*
+ *
+ * Jamie Liao and Jungsoo Park
+ *
+ *
+ * This class contains all needed information related to the torrent itself. Makes it easier to transfer information between the classes and methods. Mainly consists of getters and setters. 
+ *
+ */
+
 package client;
 
 import java.io.*;
@@ -23,6 +32,8 @@ public class Torrent{
 
     private static final ByteBuffer KEY_PORT = ByteBuffer.wrap(new byte[] 
             { 'p', 'o', 'r', 't' });
+    private static final ByteBuffer INTERVAL = ByteBuffer.wrap(new byte[] 
+            { 'i', 'n', 't', 'e', 'r', 'v', 'a', 'l'} );
 
     private TorrentInfo info;
     private int pieceCount;
@@ -44,11 +55,19 @@ public class Torrent{
       file_length = info.file_length;
       piece_hashes = info.piece_hashes;
       info_hash = info.info_hash.array();
+      uploaded = 0;
+      downloaded = 0;
+      left = file_length;
     }
 
     //setters
-    public void updateDownload(int x){ downloaded = x;}
-    public void updateLeft(int x){left = x;}
+    public void incDownload(int numBytes){
+      downloaded += numBytes;
+      left -= numBytes;
+    }
+    public void incUpdate(int numBytes){
+      uploaded += numBytes;
+    }
 
     //getters
     public byte[] getPEER_ID(){ return PEER_ID;}
@@ -56,11 +75,17 @@ public class Torrent{
     public ByteBuffer getKEY_PEER_ID(){ return KEY_PEER_ID;}
     public ByteBuffer getKEY_IP(){ return KEY_IP;}
     public ByteBuffer getKEY_PORT(){ return KEY_PORT;}
+    public ByteBuffer getINTERVAL(){ return INTERVAL;}
     public TorrentInfo getTorrent(){ return info;}
     public int getPieceCount(){ return pieceCount;}
     public int getPieceLength(){ return pieceLength;}
     public int getFileLength(){ return file_length;}
     public ByteBuffer[] getPieceHashes(){ return piece_hashes;}
     public byte[] getInfoHash(){ return info_hash;}
+    public int getDownloaded(){return downloaded;}
+    public int getUploaded(){return uploaded;}
+    public int getLeft(){return left;}
+    public TorrentInfo getTorrInfo(){return info;}
+
 
 }
