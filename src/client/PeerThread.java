@@ -26,24 +26,27 @@ public class PeerThread implements Runnable{
     private static boolean end;                 // End condition in case user wants to end
     private static int numThreads;              // Maintains number of running threads
     private Map<String, Object> peer;           // Current peer thread is talking to
-    private static Piece[] pieceRec;            // Piece array to keep track of pieces
+    //private static Piece[] pieceRec;            // Piece array to keep track of pieces
     private static int index;                   // Pointer to the next available piece
     private static FileOutputStream os;         // Used to continuously write to file
 
-    public PeerThread(String threadName, Torrent torr, Map<String, Object> peer, String outFileName){
+    public PeerThread(String threadName, Torrent torr, Map<String, Object> peer){
       this.threadName = threadName;
       this.torr = torr;
       this.peer = peer;
-      pieceRec = new Piece[torr.getPieceCount()];
-      index = 0;
+      //torr.pieceRec = new Piece[torr.getPieceCount()];
+      index = getNextIndex();
       //Check if file exists already
       try{
+/*
         String directory = System.getProperty("user.dir");
-        if(new File(directory, outFileName).exists())
-          os = new FileOutputStream(outFileName, true);
-          
-        else
-          os = new FileOutputStream(outFileName, true);
+        if(new File(directory, outFileName+".ser").exists()){        //if resuming download
+          System.out.println("Resuming download of " + torr.getFileName());
+          os = new FileOutputStream(torr.getFileName(), true);
+          updateSave();
+        }else
+*/
+          os = new FileOutputStream(torr.getFileName(), true);
       }catch(FileNotFoundException e){
         System.err.println("ERROR: Could not write to file.");
         e.printStackTrace();
@@ -61,17 +64,17 @@ public class PeerThread implements Runnable{
       long start = System.nanoTime();
 
       //send handshake
-      System.out.println("Thread " + threadName + " is running!");
+      //System.out.println("Thread " + threadName + " is running!");
       checkHandshake();
-      System.out.println(threadName + "'s handshake approved");
+      //System.out.println(threadName + "'s handshake approved");
 
       try{
         getBitField();
         gaugeInterest();
-        System.out.println("   The file is " + torr.getPieceLength() + "B long and has " + torr.getPieceCount() + " pieces.");
+        //System.out.println("   The file is " + torr.getPieceLength() + "B long and has " + torr.getPieceCount() + " pieces.");
 
-        System.out.println("Downloading file...");
-        while(index < pieceRec.length && !end){
+        System.out.println("Downloading file from " + threadName + "...");
+        while(index < torr.getPieceRec().length && !end){
           downloadFile();
         }
         long end = System.nanoTime();
@@ -87,6 +90,26 @@ public class PeerThread implements Runnable{
       
     }
 
+/*
+    private void updateSave(){
+      Save s = null;
+      try {
+        FileInputStream fileIn = new FileInputStream(torr.getFileName() + ".ser");
+        ObjectInputStream in = new ObjectInputStream(fileIn);
+        s = (Save) in.readObject();
+        in.close();
+        fileIn.close();
+      }catch(IOException e) {
+        System.err.println("ERROR: Could not read saved file.");
+        e.printStackTrace();
+      }catch(ClassNotFoundException e) {
+        System.err.println("ERROR: Could not read saved file.");
+        e.printStackTrace();
+      }
+      
+    }
+*/
+
     //method to download the file
     private void downloadFile() throws IOException{
       byte msgId = -2;
@@ -94,7 +117,7 @@ public class PeerThread implements Runnable{
       Piece piece;
       byte[] currPiece =  new byte[torr.getPieceLength()];
       // Sending "request"
-      synchronized(pieceRec){
+      synchronized(torr.getPieceRec()){
         out.writeInt(13);                         // Message Length
         out.writeByte(6);                         // Message ID
         out.writeInt(getNextIndex());             // Index
@@ -118,14 +141,14 @@ public class PeerThread implements Runnable{
           }
 
           pieceLength = torr.getPieceLength();
-          System.out.println("   " + i + " is a piece!");
+          //System.out.println("   " + i + " is a piece!");
           if (index == torr.getPieceCount() - 1) { // Last piece
             pieceLength = in.available();
           } else { // Wait until there is enough available bytes
             while (in.available() < torr.getPieceLength()) { }
           }
           piece = new Piece(len, msgId, pieceLength);
-          pieceRec[index] = piece;
+          torr.getPieceRec()[index] = piece;
 
           in.readFully(currPiece);
           //build piece to store into array
@@ -144,7 +167,7 @@ public class PeerThread implements Runnable{
           System.out.println(i + "\t" + currPiece);
           try{
               os.write(currPiece);
-              System.out.println("   piecelength: " + pieceLength);
+              //System.out.println("   piecelength: " + pieceLength);
               torr.incDownload(pieceLength);
           }catch(FileNotFoundException e){
             System.err.println("ERROR: Could not write to file.");
@@ -160,8 +183,8 @@ public class PeerThread implements Runnable{
     //method to get the next piece's index
     private synchronized int getNextIndex(){
       for(; index < torr.getPieceCount(); index++){
-        if(pieceRec[index] == null){
-          System.out.println("      index: " + index);
+        if(torr.getPieceRec()[index] == null){
+          //System.out.println("      index: " + index);
           return index;
         }
       }
@@ -181,7 +204,7 @@ public class PeerThread implements Runnable{
 
 
     private void gaugeInterest() throws IOException{
-      System.out.println("   Expressing interest to peer " + peerIp + "...");
+      //System.out.println("   Expressing interest to peer " + peerIp + "...");
       out.writeInt(1);                // Message Length
       out.writeByte(2);               // Message ID
 
@@ -200,15 +223,15 @@ public class PeerThread implements Runnable{
               break;
           }
       }
-      System.out.println("   " + peerIp + " is interested.");
+      //System.out.println("   " + peerIp + " is interested.");
     }
 
     private void getBitField() throws IOException{
-      System.out.println("   Getting bitfield...");
+      //System.out.println("   Getting bitfield...");
       int len = in.readInt();
       byte msgId = in.readByte();
       if(msgId == 5){
-        System.out.println("   Verified bitfield");
+        //System.out.println("   Verified bitfield");
         //byte[] bitfield = new byte[1+(torr.getPieceHashes().length/8)];
         byte[] bitfield = new byte[len -1];
         in.readFully(bitfield);
@@ -238,7 +261,7 @@ public class PeerThread implements Runnable{
 
     //check the handshake of the user.
     private synchronized void checkHandshake(){
-      System.out.println("   Attempting to handshake with peer...");
+      //System.out.println("   Attempting to handshake with peer...");
       try{
         Socket peerSock = getPeerSock();
         in = new DataInputStream(peerSock.getInputStream());

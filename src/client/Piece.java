@@ -12,7 +12,7 @@ import java.io.*;
 import java.util.*;
 import java.net.*;
 
-public class Piece{
+public class Piece implements java.io.Serializable{
   private int len;
   private byte msgId;
   private int index;

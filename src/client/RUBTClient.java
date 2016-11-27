@@ -174,20 +174,35 @@ public class RUBTClient {
         
         String host = metaInfo.announce_url.toString();
         String qs = getQueryString(metaInfo, "started");
-
-        TrackerThread tt = new TrackerThread(metaInfo, PEER_ID);
         
+        //start user input thread to check for 'quit' to end the program and save their progress
+        InputThread it = new InputThread();
+        it.start();
+
+
+        //Create tracker thread that continuously updates the tracker
+        TrackerThread tt = new TrackerThread(metaInfo, PEER_ID);
+
+        //Find lowest RTT of peers... Peers class is kinda useless right now
         Peers peers = new Peers(tt.getAllPeers());
-        Torrent torr = new Torrent(metaInfo, peers.getPeers());
+
+        //Store all the information of the torrent into this object for easy access
+        Torrent torr = new Torrent(metaInfo, peers.getPeers(), outFileName);
+        it.setTorr(torr);
         tt.setTorrent(torr);
         tt.start();
 
-        System.out.println("Success!");
+        //System.out.println("Success!");
 
         String peerIp = getStringFrom((ByteBuffer) peers.getPeer().get(torr.getKEY_IP()));
         int peerPort = (int) peers.getPeer().get(torr.getKEY_PORT());
+
+        //Connects all acceptable peers and downloads from them via multithreading
         ThreadConnection conn = new ThreadConnection(torr.getPieceCount(), peers, torr, outFileName);
         conn.run();
+
+
+        //------------------ Code doesn't run after this
 
         try { // Fun with the peer!
             Socket peerSock = new Socket(peerIp, peerPort);
@@ -209,7 +224,7 @@ public class RUBTClient {
             in.readFully(bitfield);
             */
 
-            TimeUnit.SECONDS.sleep(30);
+            TimeUnit.SECONDS.sleep(300);
             System.out.print("Expressing interest to peer... ");
             out.writeInt(1);                // Message Length
             out.writeByte(2);               // Message ID

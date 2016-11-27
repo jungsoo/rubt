@@ -48,9 +48,9 @@ public class TrackerThread implements Runnable{
   public void run(){
     while(true){
       try{
+        //System.out.println("response interval: " + Integer.valueOf( response.get(torr.getINTERVAL())));
+        thread.sleep((long)120*2000);
         System.out.println("Updating tracker...");
-        System.out.println("response interval: " + Integer.valueOf( response.get(torr.getINTERVAL())));
-        thread.sleep(Integer.valueOf( response.get(torr.getINTERVAL())));
         HttpURLConnection con = (HttpURLConnection) new URL(host + buildQueryString()).openConnection();
         updateValues();
       }catch(IOException e){
@@ -71,6 +71,7 @@ public class TrackerThread implements Runnable{
     String qs = buildQueryString();
     byte[] responseBytes = null;
     System.out.println("Connecting to TRACKER... ");
+
 
     try { // Connecting
       HttpURLConnection con = (HttpURLConnection) new URL(host + qs).openConnection();
