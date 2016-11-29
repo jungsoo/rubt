@@ -14,37 +14,43 @@ import java.net.*;
 
 public class ThreadConnection{
   private boolean end;
-  private Torrent torr;
+  private static Torrent torr;
   private Peers peers;
   private String outFileName;
+  private static ArrayList<String> uploadList;
 
   public ThreadConnection(int numPieces, Peers peers, Torrent torr, String outFileName){
     this.peers = peers;
     this.torr = torr;
     this.outFileName = outFileName;
+    uploadList = new ArrayList<String>();
   }
 
   public void run(){
     //check to see if the download is resuming or completely new
-        String directory = System.getProperty("user.dir");
-        if(new File(directory, outFileName).exists()){
-          System.out.println("Resuming download of " + torr.getFileName());
-          //os = new FileOutputStream(outFileName, true);
-          updateSave();
-        }
-          //os = new FileOutputStream(outFileName, false);
+    String directory = System.getProperty("user.dir");
+    if(new File(directory, outFileName).exists()){
+      System.out.println("Resuming download of " + torr.getFileName() + "...");
+      updateSave();
+    }
 
 
     int i = 0;
-      for(Map<String, Object> p : peers.getPeers()){
-          PeerThread pt = new PeerThread("Thread-" + i, torr, p);
-          pt.start();
-        //allow only 1 thread to access boolean array of pieces received
-        //sychronized(pieceRec){
-        //  readPiece();
-        //}
-        i++;
-      }
+    for(Map<String, Object> p : peers.getRUPeers()){
+        PeerThread pt = new PeerThread("Thread-" + i, torr, p);
+        pt.start();
+      //allow only 1 thread to access boolean array of pieces received
+      //sychronized(pieceRec){
+      //  readPiece();
+      //}
+      i++;
+    }
+
+    //Uploading listening starts
+    System.out.println("Piece length: " + torr.getPieceLength());
+    ListenConnect lc = new ListenConnect(torr);
+    lc.start();
+
   }
 
   private void updateSave(){

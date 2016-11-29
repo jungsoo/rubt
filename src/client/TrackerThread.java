@@ -46,13 +46,15 @@ public class TrackerThread implements Runnable{
   }
 
   public void run(){
+    long start = System.nanoTime();
     while(true){
       try{
-        //System.out.println("response interval: " + Integer.valueOf( response.get(torr.getINTERVAL())));
-        thread.sleep((long)120*2000);
+        System.out.println("response interval: " + response.get(torr.getINTERVAL()));
+        Long interval = new Long((Integer)response.get(torr.getINTERVAL()));
+        thread.sleep(interval.longValue()*1000);
         System.out.println("Updating tracker...");
-        HttpURLConnection con = (HttpURLConnection) new URL(host + buildQueryString()).openConnection();
         updateValues();
+        HttpURLConnection con = (HttpURLConnection) new URL(host + buildQueryString()).openConnection();
       }catch(IOException e){
         System.err.println("ERROR: Tracker could not connect.");
         e.printStackTrace();
@@ -62,7 +64,18 @@ public class TrackerThread implements Runnable{
 
       }
     }
+  }
 
+  public void sendFinished(){
+
+    event = "finished";
+    updateValues();
+    try{
+      HttpURLConnection con = (HttpURLConnection) new URL(host + buildQueryString()).openConnection();
+    }catch(IOException e){
+      System.err.println("ERROR: Could not contact tracker to finish.");
+      e.printStackTrace();
+    }
   }
 
   private void makeConnection(TorrentInfo info){

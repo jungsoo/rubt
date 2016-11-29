@@ -40,17 +40,19 @@ public class Torrent{
     private int pieceLength;
     private int file_length;
     private ByteBuffer[] piece_hashes;
-    private List<Map<String, Object>> RUPeers;
     private byte[] info_hash;
     private int uploaded;
     private int downloaded;
     private int left;
     private static Piece[] pieceRec;
     private String outFileName;
+    private int port;
+    private Peers peer;
+    private  boolean finished;
 
-    public Torrent(TorrentInfo info, List<Map<String, Object>> RUPeers, String outFileName){
+    public Torrent(TorrentInfo info, Peers peer, String outFileName){
       this.info = info;
-      this.RUPeers = RUPeers;
+      this.peer = peer;
       pieceCount = info.piece_hashes.length;
       pieceLength = info.piece_length;
       file_length = info.file_length;
@@ -61,6 +63,7 @@ public class Torrent{
       left = file_length;
       pieceRec = new Piece[pieceCount];
       this.outFileName = outFileName;
+      port = 6881;
     }
 
     public void incDownload(int numBytes){
@@ -87,6 +90,10 @@ public class Torrent{
       this.pieceRec = pieceRec;
     }
 
+    public void setFinished(boolean finished){
+      this.finished = finished;
+    }
+
 
 
     //getters
@@ -108,6 +115,10 @@ public class Torrent{
     public TorrentInfo getTorrInfo(){return info;}
     public Piece[] getPieceRec(){return pieceRec;}
     public String getFileName(){return outFileName;}
+    public int getPort(){return port;}
+    public List<Map<String, Object>> getRUPeers(){return peer.getRUPeers();}
+    public List<Map<String, Object>> getAllPeers(){return peer.getAllPeers();}
+    public boolean getFinished(){return finished;}
 
 
 }

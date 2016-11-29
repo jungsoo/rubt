@@ -40,6 +40,9 @@ public class InputThread implements Runnable{
         System.exit(0);
       }
     }
+
+
+
   }
 
   public void setTorr(Torrent torr){

@@ -23,23 +23,8 @@ public class RUBTClient {
 
     // Unique, arbitrary peer id
     private static final byte[] PEER_ID =
-        { 'J', 'u', 'n', 'g', 's', 'o', 'o', 'P', 'a', 'r', 
+        { 'J', 'u', 'n', 'g', 's', 'o', 'o', 'P', 'a', 'r',
           'k', 'J', 'a', 'm', 'i', 'e', 'L', 'i', 'a', 'o' };
-    /* Moved to Torrent.java
-     *
-
-    private static final ByteBuffer KEY_PEERS = ByteBuffer.wrap(new byte[] 
-            { 'p', 'e', 'e', 'r', 's' });
-
-    private static final ByteBuffer KEY_PEER_ID = ByteBuffer.wrap(new byte[] 
-            { 'p', 'e', 'e', 'r', ' ', 'i', 'd' });
-
-    private static final ByteBuffer KEY_IP = ByteBuffer.wrap(new byte[] 
-            { 'i', 'p' });
-
-    private static final ByteBuffer KEY_PORT = ByteBuffer.wrap(new byte[] 
-            { 'p', 'o', 'r', 't' });
-    */
 
     private static TorrentInfo getTorrentInfo(String fileName) throws IOException {
 
@@ -70,42 +55,6 @@ public class RUBTClient {
         return data;
     }
 
-    private static String toHexString(byte[] bytes) {
-        StringBuilder sb = new StringBuilder(bytes.length * 3);
-        char[] hex = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
-
-        for (int i = 0; i < bytes.length; i++) {
-            byte b = bytes[i];
-            byte hi = (byte) ((b >> 4) & 0x0f);
-            byte lo = (byte) (b & 0x0f);
-            sb.append('%').append(hex[hi]).append(hex[lo]);
-        }
-
-        return sb.toString();
-    }
-
-    private static String getQueryString(TorrentInfo info, String event) {
-        // Make these parameters as our client gets more interesting
-        String infoHash = toHexString(info.info_hash.array());
-        String peerId = toHexString(PEER_ID);
-        String ip = info.announce_url.getHost().toString();
-        String port = String.valueOf(info.announce_url.getPort());
-        String uploaded = "" + 0;
-        String downloaded = "" + 0;
-        String left = String.valueOf(info.file_length);
-        // String noPeerId = "1";
-        // String compact = "0";
-
-        String qs = "?info_hash=" + infoHash
-                    + "&peer_id=" + peerId
-                    + "&downloaded=" + downloaded
-                    + "&uploaded=" + uploaded
-                    + "&left=" + left
-                    + "&event=" + event;
-
-        return qs;
-    }
-
     /*
      * @param Bytebuffer to convert
      * @return the bytestring in string form
@@ -121,45 +70,16 @@ public class RUBTClient {
 
         return res;
     }
-/*
-    private static void sendHandshake(DataOutputStream out, TorrentInfo info) throws IOException {
-            out.writeByte(19);
-            out.write("BitTorrent protocol".getBytes());
-            out.write(new byte[8]);
-            out.write(info.info_hash.array());
-            out.write(PEER_ID);
-    }
-    */
-
-    private static boolean messageIsUnchoked(int lengthPrefix, byte message) {
-        return lengthPrefix == 1 && message == 1;
-    }
-
-    private static boolean messageIsChoked(int lengthPrefix, byte message) {
-        return lengthPrefix == 1 && message == 0;
-    }
-
-    private static boolean messageIsPiece(byte message) {
-        return message == 7;
-    }
-
-    private static ByteBuffer getSHA1Checksum(byte[] piece) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-1");
-            digest.update(piece);
-            return ByteBuffer.wrap(digest.digest());
-        } catch (NoSuchAlgorithmException nsae) {
-            System.err.println(nsae.getLocalizedMessage());
-        }
-        return null;
-    }
-
+    
+    
     public static void main(String[] args) {
 
         if (args.length != 2) {
             System.err.println("ERROR: Not enough inputs.");
             System.exit(1);
         }
+
+        long start = System.nanoTime();
 
         String outFileName = args[1];
         TorrentInfo metaInfo = null;
@@ -168,12 +88,6 @@ public class RUBTClient {
         } catch (IOException e) {
             e.printStackTrace();
         }
-
-        
-        /* Build query string */
-        
-        String host = metaInfo.announce_url.toString();
-        String qs = getQueryString(metaInfo, "started");
         
         //start user input thread to check for 'quit' to end the program and save their progress
         InputThread it = new InputThread();
@@ -187,179 +101,29 @@ public class RUBTClient {
         Peers peers = new Peers(tt.getAllPeers());
 
         //Store all the information of the torrent into this object for easy access
-        Torrent torr = new Torrent(metaInfo, peers.getPeers(), outFileName);
+        Torrent torr = new Torrent(metaInfo, peers, outFileName);
         it.setTorr(torr);
         tt.setTorrent(torr);
         tt.start();
-
-        //System.out.println("Success!");
-
-        String peerIp = getStringFrom((ByteBuffer) peers.getPeer().get(torr.getKEY_IP()));
-        int peerPort = (int) peers.getPeer().get(torr.getKEY_PORT());
 
         //Connects all acceptable peers and downloads from them via multithreading
         ThreadConnection conn = new ThreadConnection(torr.getPieceCount(), peers, torr, outFileName);
         conn.run();
 
-
-        //------------------ Code doesn't run after this
-
-        try { // Fun with the peer!
-            Socket peerSock = new Socket(peerIp, peerPort);
-
-            DataOutputStream out = new DataOutputStream(peerSock.getOutputStream());
-            DataInputStream in = new DataInputStream(peerSock.getInputStream());
-
-
-            /*
-            System.out.print("Attempting to handshake with peer... ");
-            //sendHandshake(out, metaInfo);
-            String peerID = getStringFrom((ByteBuffer) peers.getPeer().get(torr.getKEY_PEER_ID()));
-            Handshake hs = new Handshake(out,in, torr, peers.getPeer());
-            hs.sendHandshake();
-            // Read bitfield, what is this for?
-            int len = in.readInt();
-            byte msgId = in.readByte();
-            byte[] bitfield = new byte[len - 1];
-            in.readFully(bitfield);
-            */
-
-            TimeUnit.SECONDS.sleep(300);
-            System.out.print("Expressing interest to peer... ");
-            out.writeInt(1);                // Message Length
-            out.writeByte(2);               // Message ID
-
-            int len = in.readInt();
-            byte msgId = in.readByte();
-            
-            if (messageIsUnchoked(len, msgId)) {   // Unchoked
-
-                System.out.println("Unchoked!");
-                final int pieceCount = metaInfo.piece_hashes.length;
-                int pieceLength = metaInfo.piece_length;
-
-                byte[] pieces = new byte[(pieceCount - 1) * pieceLength + 
-                    metaInfo.file_length % pieceLength];
-                System.out.println("The file is " + pieces.length + "B long and has " + pieceCount + " pieces.");
-                System.out.println("Downloading...");
-                long start = System.nanoTime();
-
-
-                FileOutputStream os = new FileOutputStream(outFileName, true);
-
-
-                //-----------------------------------------------------------
-                //changed the for loop condition to stop RUBTClient from running
-                for (int i = 0; i > pieceCount; i++) {
-
-                    pieceLength = torr.getPieceLength();
-                    if (i == pieceCount - 1) {
-                        pieceLength = torr.getFileLength() % pieceLength;
-                    }
-
-                    // Sending "request"
-                    out.writeInt(13);               // Message Length
-                    out.writeByte(6);               // Message ID
-                    out.writeInt(i);                // Index
-                    out.writeInt(0);                // Begin
-                    out.writeInt(pieceLength);      // Length
-
-                    // Read message header
-                    len = in.readInt();
-                    msgId = in.readByte();
-
-                    System.out.println("     msgId: " + msgId);
-
-                    if (messageIsPiece(msgId)) {
-                        int index = in.readInt();
-                        int begin = in.readInt();
-
-                        System.out.println("index: " + index);
-
-
-                        if (i == pieceCount - 1) { // Last piece
-                            pieceLength = in.available();
-                        } else { // Wait until there is enough available bytes
-                            while (in.available() < pieceLength) { }
-                        }
-
-                        in.readFully(pieces, i * metaInfo.piece_length, pieceLength);
-
-                        byte[] currPiece = Arrays.copyOfRange(pieces,
-                                i * metaInfo.piece_length,
-                                i * metaInfo.piece_length + pieceLength);
-
-                        ByteBuffer correctChecksum = metaInfo.piece_hashes[i];
-                        ByteBuffer pieceChecksum = getSHA1Checksum(currPiece);
-
-                        /*
-                        System.out.print("    correctChecksum\n     ");
-                        for (Byte b : correctChecksum.array())
-                            System.out.print(b);
-                        System.out.print("\n    pieceChecksum\n     ");
-                        for (Byte b : pieceChecksum.array())
-                            System.out.print(b);
-                        System.out.println();
-                        */
-                        
-
-
-                        if (correctChecksum.equals(pieceChecksum)) {
-                            System.out.println(i + "\t" + currPiece);
-
-                            //write to file 
-                            try{
-                              os.write(currPiece);
-                              //System.out.println(currPiece.length + " bytes  written to file");
-                            } catch (IOException e) {
-                              //exception handling left as an exercise for the reader
-                            }
-                        } else {
-                            
-                            //System.err.println("ERROR: PIECE #" + i + " FAILED SHA-1 CHECK, TRYING AGAIN");
-                            i--;
-                        }
-                    } else {
-                        //System.err.println("ERROR: PIECE #" + i + " NOT RECEIVED!");
-                    }
-                }
-                long end = System.nanoTime();
-                double totalTime = (double)(end-start)/1000000000.0;
-                System.out.println("Total time to download file is " + (int)totalTime/60 + " minutes and "  + totalTime%60 + "s");
-
-                /*
-                FileOutputStream fout = new FileOutputStream(outFileName);
-                fout.write(pieces);
-                fout.close();
-                */
-                System.out.println("File written to disk.");
-                out.close();
-                os.close();
-                in.close();
-                peerSock.close();
-            }
-
-        } catch (UnknownHostException uhe) {
-            System.err.println("ERROR: Unknown host.");
-            uhe.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (Exception e){
-            System.err.println("ERROR: Something went wrong lul.");
-            e.printStackTrace();
+        while(!torr.getFinished()){
+          try{
+            TimeUnit.SECONDS.sleep(5);
+          }catch(InterruptedException e){
+            System.out.println("Could not wait.. :(");
+          }
         }
 
-        try { // Telling the tracker that the download has completed
-            qs = getQueryString(metaInfo, "completed");
-            HttpURLConnection con = (HttpURLConnection) new URL(host + qs).openConnection();
+        System.out.println("Finished downloading!\nUploading tracker...");
+        tt.sendFinished();
 
-            InputStream in = con.getInputStream();
-            byte[] responseBytes = new byte[in.available()];
-            in.read(responseBytes);
-
-        } catch (IOException e) {
-            System.err.println("Failure!\nERROR: Failed to connect to tracker.");
-            e.printStackTrace();
-        }
+        long end = System.nanoTime();
+        double totalTime = (double)(end-start)/1000000000.0;
+        System.out.println("Total time to download file is " + (int)totalTime/60 + " minutes and " + totalTime%60 + "s");
+        System.exit(0);
     }
 }

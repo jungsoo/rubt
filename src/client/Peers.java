@@ -140,8 +140,11 @@ public class Peers{
     }
   }
 
-  public List<Map<String, Object>> getPeers(){
+  public List<Map<String, Object>> getRUPeers(){
     return RUPeers;
+  }
+  public List<Map<String, Object>> getAllPeers(){
+    return allPeers;
   }
 
 }

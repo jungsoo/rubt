@@ -60,9 +60,6 @@ public class PeerThread implements Runnable{
     }
 
     public void run(){
-      //start counter
-      long start = System.nanoTime();
-
       //send handshake
       //System.out.println("Thread " + threadName + " is running!");
       checkHandshake();
@@ -70,24 +67,24 @@ public class PeerThread implements Runnable{
 
       try{
         getBitField();
-        gaugeInterest();
+        unchoke();
         //System.out.println("   The file is " + torr.getPieceLength() + "B long and has " + torr.getPieceCount() + " pieces.");
 
         System.out.println("Downloading file from " + threadName + "...");
-        while(index < torr.getPieceRec().length && !end){
+        while(index < 509 && !torr.getFinished()){
           downloadFile();
         }
-        long end = System.nanoTime();
-        double totalTime = (double)(end-start)/1000000000.0;
-        System.out.println("Total time to download file is " + (int)totalTime/60 + " minutes and " + totalTime%60 + "s");
+        System.out.println("Finished!");
+        os.close();
+        in.close();
+        out.close();
+      
 
       }catch(IOException e){
-        System.err.println("ERROR: Sumting went wrong in " + threadName + ".");
-        e.printStackTrace();
-
+        torr.setFinished(true);
+        return;
+        //e.printStackTrace();
       }
-
-      
     }
 
 /*
@@ -121,13 +118,15 @@ public class PeerThread implements Runnable{
         out.writeInt(13);                         // Message Length
         out.writeByte(6);                         // Message ID
         out.writeInt(getNextIndex());             // Index
-      
         out.writeInt(0);                          // Begin
         out.writeInt(torr.getPieceLength());      // Length
 
         // Read message header
         int len = in.readInt();
         msgId = in.readByte();
+
+
+        //Interested
         if(msgId == 7){
 
           if(index == torr.getPieceCount() -1){
@@ -148,7 +147,7 @@ public class PeerThread implements Runnable{
             while (in.available() < torr.getPieceLength()) { }
           }
           piece = new Piece(len, msgId, pieceLength);
-          torr.getPieceRec()[index] = piece;
+          torr.getPieceRec()[i] = piece;
 
           in.readFully(currPiece);
           //build piece to store into array
@@ -203,7 +202,7 @@ public class PeerThread implements Runnable{
     }
 
 
-    private void gaugeInterest() throws IOException{
+    private void unchoke() throws IOException{
       //System.out.println("   Expressing interest to peer " + peerIp + "...");
       out.writeInt(1);                // Message Length
       out.writeByte(2);               // Message ID
